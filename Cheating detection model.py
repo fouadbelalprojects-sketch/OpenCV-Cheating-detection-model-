@@ -3,9 +3,7 @@ import numpy as np
 import time
 from sklearn.datasets import fetch_lfw_people
 
-# ==========================================
-# 1. SETUP LFW DATASET
-# ==========================================
+
 print("Fetching LFW Dataset (This might take a moment on the first run)...")
 lfw_dataset = fetch_lfw_people(min_faces_per_person=70, resize=0.5)
 lfw_faces = [np.uint8(img * 255) for img in lfw_dataset.images]
@@ -16,17 +14,12 @@ user_label_id = len(target_names)
 target_names.append("Authorized Student")
 print(f"LFW Loaded! {len(lfw_faces)} background faces ready.")
 
-# ==========================================
-# 2. SETUP OPENCV DETECTORS
-# ==========================================
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye_tree_eyeglasses.xml')
 face_recognizer = cv2.face.LBPHFaceRecognizer_create()
 
-# ==========================================
-# 3. STATE VARIABLES
-# ==========================================
+
 is_registered = False
 registration_frames = []
 REQUIRED_FRAMES = 90  
@@ -49,9 +42,7 @@ def get_all_faces(gray_frame, frame_w):
                 face_type = "profile"
     return faces, face_type
 
-# ==========================================
-# 4. MAIN LOOP
-# ==========================================
+
 cap = cv2.VideoCapture(0)
 print("Starting Camera... Get ready for 3-stage registration.")
 
@@ -65,7 +56,7 @@ while cap.isOpened():
     
     detected_faces, face_type = get_all_faces(gray_frame, frame_w)
 
-    # --- PHASE 1: REGISTRATION ---
+   
     if not is_registered:
         progress = len(registration_frames)
         if progress < 30:
@@ -104,7 +95,7 @@ while cap.isOpened():
         elif len(detected_faces) > 1:
             cv2.putText(frame, "ERROR: Multiple faces!", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    # --- PHASE 2: MONITORING ---
+   
     else:
         person_count = len(detected_faces)
         eyes_detected_this_frame = False
@@ -190,39 +181,6 @@ while cap.isOpened():
         
         arm_detected = any(cv2.contourArea(c) > 6000 for c in contours)
         if not arm_detected: warnings.append("ARMS NOT VISIBLE IN DESK ZONE")
-
-        # 4. Phone Detection (Geometric)
-        blurred = cv2.GaussianBlur(gray_frame, (5, 5), 0)
-        edges = cv2.Canny(blurred, 50, 150)
-        kernel = np.ones((5, 5), np.uint8)
-        dilated_edges = cv2.dilate(edges, kernel, iterations=1)
-        
-        shape_contours, _ = cv2.findContours(dilated_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        phone_detected = False
-        
-        for contour in shape_contours:
-            area = cv2.contourArea(contour)
-            if 3000 < area < 25000:
-                peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
-                
-                if len(approx) == 4:
-                    px, py, pw, ph = cv2.boundingRect(approx)
-                    aspect_ratio = float(pw) / ph
-                    
-                    if (0.4 < aspect_ratio < 0.65) or (1.6 < aspect_ratio < 2.2):
-                        is_face = False
-                        for (fx, fy, fw, fh) in detected_faces:
-                            if (fx < px < fx+fw) and (fy < py < fy+fh):
-                                is_face = True
-                                break
-                                
-                        if not is_face:
-                            phone_detected = True
-                            cv2.rectangle(frame, (px, py), (px + pw, py + ph), (255, 0, 255), 3)
-                            cv2.putText(frame, "SUSPECTED DEVICE", (px, py - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
-        
-        if phone_detected: warnings.append("SUSPICIOUS RECTANGULAR DEVICE DETECTED")
 
         # --- UI: Display Warnings ---
         y_offset = 30
